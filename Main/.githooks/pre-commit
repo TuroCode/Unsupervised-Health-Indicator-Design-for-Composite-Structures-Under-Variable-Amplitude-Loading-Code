@@ -1,0 +1,18 @@
+# Max size in MB
+$maxMB = 100
+
+# Get all staged files, ignoring .gitignore
+git diff --cached --name-only | ForEach-Object {
+    $file = $_
+    if (Test-Path $file -PathType Leaf) {
+        $isIgnored = git check-ignore $file
+        if ($isIgnored) { return }  # skip ignored files
+
+        $sizeMB = ((Get-Item $file).Length / 1MB)
+        if ($sizeMB -gt $maxMB) {
+            Write-Host "❌ ERROR: File $file is larger than $maxMB MB. Commit blocked."
+            exit 1
+        }
+    }
+}
+exit 0

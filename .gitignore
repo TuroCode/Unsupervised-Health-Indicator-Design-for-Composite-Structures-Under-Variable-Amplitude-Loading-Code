@@ -1,0 +1,14 @@
+#INGORATION
+/Main/data_2224/*
+/Main/clean_data/
+*.csv
+*.parquet
+/Main/Entropy Plots/
+*.png
+/Main/plots
+/Main/filtered_data
+/Main/clean_data_trimmed/*.parquet
+/Main/Entropy Plots/*.png
+/Main/Feature_Time_Plots/*.png
+/Main/Feature_matrix
+Feature_matrix.npy
