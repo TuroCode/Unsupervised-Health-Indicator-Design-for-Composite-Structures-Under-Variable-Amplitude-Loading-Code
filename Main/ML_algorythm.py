@@ -36,10 +36,8 @@ plotting_results=True #Shows the reslting HI derives for al samples fed onto the
 
 
 Column = np.array(["CSS","CCNT","R","D","RMS"])
-Features=np.array(["standard_deviations","entropy","standard_deviations","entropy","maxima"])
+Features=np.array(["sums","maxima","maxima","maxima","sums"])
 readlocally=False #Set to true if already have the matrix loaded locally (decreases computational time)
-
-
 
 ######################################
 #Machine learning algorithm parameters
@@ -52,11 +50,11 @@ fit_coeff=np.array([0.599999,0.4,0.00000001]) # a*Monotonicity+b*Prognosability+
 ###Learning hyperparameters set up
 
 window_seconds=125
-lr_ref=.1 #Learning rate reference value, check out definition for more info
-adaptative_lr=True #If set to true, adaptative learning rate will be considered, this will selct larger learning rates for features with a low order of magnitude values, allowing for a better optimisation requireing less iterations
+lr_ref=.01 #Learning rate reference value, check out definition for more info
+adaptative_lr=False #If set to true, adaptative learning rate will be considered, this will selct larger learning rates for features with a low order of magnitude values, allowing for a better optimisation requireing less iterations
 
 
-back_prop_step=0.1 #Step taken for approximating the partial derivative of the HI versus different coefficients
+back_prop_step=0.01 #Step taken for approximating the partial derivative of the HI versus different coefficients
 coeffs=np.array([0.1,0.1,0.1,0.1,0.1]) #Coefficients for initialisation
 
 #Miscellanious
@@ -85,7 +83,7 @@ def PMT_report(feature,window_time,coefficients, Fit=False,):
     b=coefficients[1]
     c=coefficients[2]
     #print(coefficients)
-    #Ensures the time arrray refernced will always be within range
+    #Ensures tAhe time arrray refernced will always be within range
     length_data=np.zeros(feature.shape[0])
     for i,run in enumerate(feature):
         length_data[i]=len(run)
@@ -228,24 +226,46 @@ def BACKPROP(EVAL_fun,coeff,step,matrixes,fitness,lr_array,HI_fun,fit_coeff):
 "Actual begining of computations, will first attain matrices of the same shape for each feature (they should be the same size for every different feature, as the window time was constant)"
 
 
-
+Reference="Reference.parquet"
 
 if not readlocally:
 
+    #Setup for feature
     Scaling_dict={}
-    df_ref=pd.read_parquet("Reference.parquet")
+    df_ref=pd.read_parquet(Reference)
 
-    #Define scaling values to each column: Dictionary that relates to each column used for features the mean and standard deviation for the respective colum <
+    #Will not be using all of the columns for feature extraction, as sutch we will not use for the dictionary def
+    #df_ref= df_ref["CSS","CCNT","R","D","RMS"]
+
+    time=df_ref["t"].values #Returns array from the t table, required for feature evaluation
+    
+    featurename=["sums", "window_times", "averages", "standard_deviations", "skewnesses", "maxima","kurtosi","entropy"]
+
+
+    #Define scaling values to each column: Creates a dictionary that relates feature to mean, std
+    
     for i,column in enumerate(Column):
         
-        column_chosen=Column[i]
-        #Compute statistical values for the respective column
-        std=np.std(df_ref[column_chosen])
-        mean=np.mean(df_ref[column_chosen])
+        column_chosen=Column[i] #Just the name of the column
+        column_dat=df_ref[column_chosen] #Column dat actually 
+        
+        #Compute mean and std of every single feature extractable for THAT column 
 
-        Scaling_dict.update({column_chosen:(mean,std)})
+        sums, window_times, averages, standard_deviations, skewnesses, maxima, kurtosi = feature_extraction(column_dat, time, window_seconds=window_seconds)
+        entropy=run_entropy_pipeline(Reference,column_chosen,config=entropy_config)[0]
+        allfeatures=np.array([sums, window_times, averages, standard_deviations, skewnesses, maxima, kurtosi,entropy])
+        
+    
+        for j,feat in enumerate(allfeatures):
+    
+            min_feat=np.min(feat)
+            max_feat=np.max(feat)
+            name=featurename[j] + Column[i]
+            Scaling_dict.update({name:(min_feat,max_feat)})
 
-    print(Scaling_dict)
+    
+
+
     matrixes=[]
 
     ###Features from data are extracted below
@@ -259,31 +279,33 @@ if not readlocally:
         print(f"reading {file}")
         df = pd.read_parquet(file)
         time = df['t'].values #Returns array from the t table, required for feature evaluation
-    
+        
         for i in range(len(Features)):
             
             #As loop across the features, will index the column in question and scale it based on the reference file given (part of the testing set)
             column_chosen = Column[i] #For analysis of the feature developed
-            mean_scaling=Scaling_dict[column_chosen][0]
-            std_scaling=Scaling_dict[column_chosen][1]
-            
-            features_dat=((df[column_chosen]-mean)/std)
-            features_dat=features_dat.to_numpy()
+
+            features_dat=df[column_chosen].to_numpy()
 
             sums, window_times, averages, standard_deviations, skewnesses, maxima, kurtosi = feature_extraction(features_dat, time, window_seconds=window_seconds)
             
             #Appends the corresponding feature to the corresponsing spot
+            name=Features[i]+Column[i]
+            min_scale=Scaling_dict[name][0]
+            max_scale=Scaling_dict[name][1]
+            range_scale=max_scale-min_scale
 
-            if Features[i]=="sums":matrixes[i].append(sums)
-            elif Features[i]=="window_times":matrixes[i].append(window_times)
-            elif Features[i]=="averages":matrixes[i].append(averages)
-            elif Features[i]=="standard_deviations":matrixes[i].append(standard_deviations)
-            elif Features[i]=="skewnesses":matrixes[i].append(skewnesses)
-            elif Features[i]=="maxima":matrixes[i].append(maxima)
-            elif Features[i]=="kurtosi":matrixes[i].append(kurtosi)
+
+            if Features[i]=="sums": (matrixes[i].append(list((np.array(sums)-min_scale)/range_scale)))
+            elif Features[i]=="window_times":matrixes[i].append(list((np.array(window_times)-min_scale)/range_scale))
+            elif Features[i]=="averages":matrixes[i].append(list((np.array(averages)-min_scale)/range_scale))
+            elif Features[i]=="standard_deviations":matrixes[i].append(list((np.array(standard_deviations)-min_scale)/range_scale))
+            elif Features[i]=="skewnesses":matrixes[i].append(list((np.array(skewnesses)-min_scale)/range_scale))
+            elif Features[i]=="maxima":matrixes[i].append(list((np.array(maxima-min_scale)/range_scale)))
+            elif Features[i]=="kurtosi":matrixes[i].append(list((np.array(kurtosi)-min_scale)/range_scale))
             elif Features[i]=="entropy":
                 entropy = run_entropy_pipeline(file,column_chosen,config=entropy_config)[0] #Computes entropy array for that file then and stores it in the respective matrix
-                matrixes[i].append(entropy.tolist()) #Append in the end
+                matrixes[i].append(list((entropy-min_scale)/range_scale)) #Append in the end
 
             ###Sums will be an array of (n_files x n_windows in that file) note that the matrix is not square!
 

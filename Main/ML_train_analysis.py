@@ -5,9 +5,8 @@ from PMT_Evaluation import PMT_report
 #Import the numpy array of features (from test set)
 
 #matrixes_columns=np.load("Feature_matrix_test_2_45.npy") #Columns of the raw data of CSS,CCNT,R,D,RMS
-matrixes=np.load("Feature_matrix.npy")
-matrixes=matrixes[[5,16,7,18,14]]
-coeffs=np.array([0.09632068,0.83594863,0.79086729,-0.28853425,-0.09189289])
+matrixes=np.load("Feature_matrix_train.npy")
+coeffs=np.array([0.0531184,  0.11853118, 0.01943188, 0.02469959, 0.0093273 ])
 fit_coeff=np.array([0.599999,0.4,0.00000001])
 row_names=["45% no1","60% no2","60% no3","45% no4","60% no4","45% no5","var loading 1","var loading 3","var loading 4","var loading 5","var loading 6","var loading 8"]
 color_arr=["lightgreen","cyan","cadetblue","lawngreen","tab:blue","tab:green","slateblue","darkslateblue","mediumslateblue","mediumpurple","rebeccapurple","blueviolet"]
@@ -94,7 +93,7 @@ row=row[row!=0] #Clear zeroes
 
 
 
-legend_arr=['std(CSS)','entropy(CCNT)','std(R)','entropy(D)','maxima(RMS)']
+legend_arr=['maxima(CSS)','entropy(CCNT)','sums(R)','sums(D)','maxima(RMS)']
 
 for i,feature in enumerate(matrixes):
     feature=feature[3,:]

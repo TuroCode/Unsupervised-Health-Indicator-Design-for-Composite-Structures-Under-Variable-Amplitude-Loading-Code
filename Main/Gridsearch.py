@@ -12,11 +12,11 @@ from numba import njit
 ###Learning hyperparameters set up
 fit_coeff=np.array([0.599999,0.4,0.00000001]) # a*Monotonicity+b*Prognosability+c*Trendability, definition of the fitness used
 window_seconds=125
-lr_ref=.01 #Learning rate reference value, check out definition for more info
+lr_ref=.1 #Learning rate reference value, check out definition for more info
 adaptative_lr=False #If set to true, adaptative learning rate will be considered, this will selct larger learning rates for features with a low order of magnitude values, allowing for a better optimisation requireing less iterations
 
 
-back_prop_step=.01 #Step taken for approximating the partial derivative of the HI versus different coefficients
+back_prop_step=.1 #Step taken for approximating the partial derivative of the HI versus different coefficients
 init_coeffs=np.array([0.1,0.1,0.1,0.1,0.1]) #Coefficients for initialisation
 
 #Miscellanious
@@ -127,7 +127,7 @@ def PMT_report(feature,window_time,coefficients, Fit=False,):
     #Once the values of Z have been defined for every sample, the std of this variable is computed and trendability is attained
     Trendability=1-np.std(z_val)
 
-    return  a*np.abs(Monotonicity)+b*Prognosability+c*Trendability
+    return  a*Monotonicity+b*Prognosability+c*Trendability
     
 entropy_config = {
     "window_seconds": 125,
@@ -246,6 +246,22 @@ def train_model(Column, Features):
 
 
     if not readlocally:
+
+
+        Scaling_dict={}
+        df_ref=pd.read_parquet("Reference.parquet")
+
+        #Define scaling values to each column: Dictionary that relates to each column used for features the mean and standard deviation for the respective colum <
+        for i,column in enumerate(Column):
+        
+            column_chosen=Column[i]
+            #Compute statistical values for the respective column
+            std=np.std(df_ref[column_chosen])
+            mean=np.mean(df_ref[column_chosen])
+
+            Scaling_dict.update({column_chosen:(mean,std)})
+
+
         matrixes=[]
         ###Features from data are extracted below
         for i in Features:
@@ -262,9 +278,13 @@ def train_model(Column, Features):
             for i in range(len(Features)):
                 
                 
+                #As loop across the features, will index the column in question and scale it based on the reference file given (part of the testing set)
                 column_chosen = Column[i] #For analysis of the feature developed
-                
-                features_dat = Filter_Scale_File_Def(df, [column_chosen])[0][column_chosen].values #Scales the data
+                mean_scaling=Scaling_dict[column_chosen][0]
+                std_scaling=Scaling_dict[column_chosen][1]
+            
+                features_dat=((df[column_chosen]-mean_scaling)/std_scaling)
+                features_dat=features_dat.to_numpy()
 
                 sums, window_times, averages, standard_deviations, skewnesses, maxima, kurtosi = feature_extraction(features_dat, time, window_seconds=window_seconds)
                 
@@ -379,14 +399,14 @@ for i in range(feature_number):
 
 
 
-# models = np.array(models)
+models = np.array(models)
 
 
-# best_idx = np.argmax(models[:, 5])   # index of best model (saves the row in which the maximum value of PM appears)
-# best_model = models[best_idx]         # full row [i, j, k, PM_value]
+best_idx = np.argmax(models[:, 5])   # index of best model (saves the row in which the maximum value of PM appears)
+best_model = models[best_idx]         # full row [i, j, k, PM_value]
 
-# print("Best PM value:", best_model[5])
-# print("Best i,j,k:", best_model[:5])
+print("Best PM value:", best_model[5])
+print("Best i,j,k:", best_model[:5])
 
 # #extract best model location
 # i = best_model[0]
